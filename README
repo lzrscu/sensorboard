@@ -1,4 +1,95 @@
-sensorboard
-===========
+sensorboard - ESP32 sensor dashboard
+====================================
+sensorboard is a small sensor dashboard built with PHP, MySQL and
+JavaScript. Devices send readings as JSON to ingest.php, PHP stores
+them in the database, and index.html plots them live.
 
-ESP3 sensor dashboard built with PHP, MySQL and JavaScript.
+
+Requirements
+------------
+In order to run sensorboard you need:
+
+    - PHP with the PDO MySQL driver (Void Linux: php, php-mysql)
+    - MariaDB or MySQL
+    - curl and awk (only for simulate.sh)
+
+The page loads Chart.js from cdnjs, so the browser needs internet
+access.
+
+
+Setup
+-----
+Copy the example files:
+
+    cp config.example.php config.php
+    cp schema.example.sql schema.sql
+
+Edit schema.sql and set a password for the database user. Edit
+config.php and put the same password there, together with a long
+random API key. A key can be generated with:
+
+    php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'
+
+Afterwards create the database, the user and the table (as the
+database root user):
+
+    mariadb -u root -p < schema.sql
+
+config.php and schema.sql contain secrets, keep them out of Git.
+
+
+Running
+-------
+Start the PHP built-in web server in the project directory:
+
+    php -S localhost:8000
+
+and open http://localhost:8000/ in a browser. The built-in server is
+meant for development only.
+
+
+Simulation
+----------
+Without hardware, simulate.sh pretends to be a sensor and posts a
+random temperature every two seconds (stop it with Ctrl+C). Run it
+from the project directory, in a second terminal:
+
+    ./simulate.sh [url]
+
+The url defaults to http://localhost:8000/ingest.php.
+
+
+Interface
+---------
+Devices send readings with a POST request to ingest.php, with the
+API key from config.php in the X-API-Key header:
+
+    curl -X POST http://localhost:8000/ingest.php \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: <api_key>" \
+        -d '{"device_id":"esp32-1","sensor_type":"temperature","value":23.5}'
+
+On success the reply is 201 {"status":"ok","id":N}. A wrong key gives
+401, invalid data 422.
+
+readings.php answers GET requests with the stored readings as JSON.
+It takes the optional parameters device, limit (1-500, default 50)
+and after_id (only return readings newer than this id).
+
+
+Files
+-----
+    ingest.php          stores readings sent by devices
+    readings.php        returns stored readings as JSON
+    index.html          dashboard page
+    style.css           dashboard styles
+    app.js              dashboard logic (polling, chart, table)
+    config.example.php  template for config.php
+    schema.example.sql  template for schema.sql
+    simulate.sh         fake sensor for testing
+
+
+Notes
+-----
+readings.php needs no API key and traffic is plain HTTP, so do not
+expose the server to untrusted networks as it is.
